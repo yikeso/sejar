@@ -229,6 +229,13 @@ public class Download {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                //线程睡眠2s给gc回收垃圾的时间，否则文件夹会删除失败。
+                //demo没有做专门的资源回收管理
+                try {
+                    Thread.sleep(1000*2);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
                 //删除缓存文件夹
                 deleteFile(new File(tempFileList.get(0)).getParentFile());
                 //强制关闭虚拟机
