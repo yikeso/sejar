@@ -1,8 +1,12 @@
 package com.china.ciic.se.sejar;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
@@ -31,26 +35,21 @@ public class Download {
     }
 
     public static void main(String[] args) throws IOException {
-/*        String fileUrl = "http://mirrors.sohu.com/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1611.iso";
-        String tempFilePath = "e:/dlp/56789.temp";
-        HttpURLConnection con = (HttpURLConnection)new URL(fileUrl).openConnection();
-        con.setRequestProperty("Connection", "Keep-Alive");  //保持一直连接
-        con.setConnectTimeout(60 * 1000 * 5);                //连接超时5分钟
-        con.setRequestMethod("GET");                         //以GET方式连接
-        con.setAllowUserInteraction(true);
-        con.setRequestProperty("Range", "bytes=" + 1024*1024*100 + "-" + 1024*1024*200);
-        ReadableByteChannel read = Channels.newChannel(con.getInputStream());
-        FileOutputStream outputStream = new FileOutputStream(tempFilePath);
-        FileChannel fileChannel = outputStream.getChannel();
-        FileLock lock = fileChannel.lock();
-        fileChannel.transferFrom(read,0,1024*1024*100);
-        lock.release();*/
-        downloadMain(null);
+        //下载文件的url路径
+        String fileUrl = "http://mirrors.sohu.com/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1611.iso";
+        //下载到本地目录
+        String downloadPath = "e:/dlp";
+        download(fileUrl,downloadPath);
     }
 
-    public static void downloadMain(String[] args) throws IOException {
-        String fileUrl = "http://mirrors.sohu.com/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1611.iso";
-        String downloadPath = "e:/dlp";
+    /**
+     * 下载任务生成者
+     * @param fileUrl
+     * @param downloadPath
+     * @throws IOException
+     */
+    public static void download(String fileUrl,String downloadPath) throws IOException {
+        //创建下载目录
         if(!new File(downloadPath).exists()){
             new File(downloadPath).mkdirs();
         }
@@ -58,6 +57,7 @@ public class Download {
         int i = fileName.lastIndexOf('.');
         String temdir = i > 0?fileName.substring(0,i)+System.currentTimeMillis():fileName+System.currentTimeMillis();
         temdir = downloadPath + "/" +temdir;
+        //创建缓存目录
         if(!new File(temdir).exists()){
             new File(temdir).mkdirs();
         }
@@ -65,19 +65,35 @@ public class Download {
         long position = 0;
         try {
             con = (HttpURLConnection)new URL(fileUrl).openConnection();
+            //获取下载文件大小
             long size = con.getContentLength();
             con.disconnect();
             con = null;
-            ListenDownloadLength listenLength = new ListenDownloadLength();
             long count = 0;
             List<String> tempFileList = new ArrayList<String>();
+            //创建下载进度监听者（观察者）
+            ListenDownloadLength listenLength = new ListenDownloadLength();
+            listenLength.setTempFileList(tempFileList);
+            listenLength.setFileName(fileName);
+            listenLength.setSize(size);
+            listenLength.setDownloadFilePath(downloadPath+"/"+fileName);
+            //线程池队列已满，则进入等待
+            while (workQueue.size() >= queLen){
+                try {
+                    Thread.sleep(1000 * 60);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            //启动监听器
+            pool.execute(listenLength);
+            //根据设置的缓存文件的大小，打包任务。
             while (position < size){
                 count = position + slice < size?slice:size-position;
+                //创建下载任务任务
                 SliceTask task = new SliceTask();
-                task.setTempFileList(tempFileList);
-                task.setSize(size);
+                //传入下载任务监听器
                 task.setListenDownloadLength(listenLength);
-                task.setDownloadFilePath(downloadPath+"/"+fileName);
                 task.setPosition(position);
                 task.setCount(count);
                 task.setFileUrl(fileUrl);
@@ -90,6 +106,7 @@ public class Download {
                         e.printStackTrace();
                     }
                 }
+                //向线程池中添加下载任务
                 pool.execute(task);
                 position += slice;
             }
@@ -102,6 +119,10 @@ public class Download {
         }
     }
 
+    /**
+     * 递归删除文件夹
+     * @param f
+     */
     private static void deleteFile(File f){
         if(f.isFile()){
             f.delete();
@@ -116,54 +137,121 @@ public class Download {
         f.delete();
     }
 
-    static class DeleteFileTask implements Runnable{
-        File f;
-        public DeleteFileTask(File f){
-            this.f = f;
+    /**
+     * 下载监听器器
+     */
+    static class ListenDownloadLength implements Runnable{
+        long size;
+        String downloadFilePath;
+        String fileName;
+        long preSecondLength = 0L;
+        List<String> tempFileList;
+        Long downloadLength = 0L;
+
+        public void setSize(long size) {
+            this.size = size;
+        }
+
+        public void setDownloadFilePath(String downloadFilePath) {
+            this.downloadFilePath = downloadFilePath;
+        }
+
+        public void setFileName(String fileName) {
+            this.fileName = fileName;
+        }
+
+        public void setTempFileList(List<String> tempFileList) {
+            this.tempFileList = tempFileList;
+        }
+
+        public void add(long l){
+            synchronized(downloadLength) {
+                downloadLength += l;
+            }
         }
 
         @Override
         public void run() {
-            try {
-                Thread.sleep(1000*10);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            //每秒打印一次实时下载速度
+            while (downloadLength < size){
+                double v;
+                synchronized (downloadLength) {
+                    v = (downloadLength - preSecondLength) / 1024.0;
+                    preSecondLength = downloadLength;
+                }
+                BigDecimal bg = new BigDecimal(v).setScale(2, RoundingMode.HALF_UP);
+                if(v > 1024) {
+                    v /= 1024.0;
+                    bg = new BigDecimal(v).setScale(2, RoundingMode.HALF_UP);
+                    System.out.println(fileName + " \\/ " + bg.doubleValue() + "M/s");
+                }else {
+                    System.out.println(fileName + " \\/ " + bg.doubleValue() + "Kb/s");
+                }
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
-            deleteFile(f);
+            System.out.println(fileName + " 多线程，网络资源拉取到本地完成。合并本地缓存文件");
+            //下载完成后合并本地缓存文件
+            FileChannel downChannel = null;
+            FileLock downLock = null;
+            File downloadFile = new File(downloadFilePath);
+            try {
+                if (!downloadFile.exists()) {
+                    downloadFile.createNewFile();
+                }
+                downChannel = new FileOutputStream(downloadFile).getChannel();
+                downLock = downChannel.lock();
+                ByteBuffer buffer = ByteBuffer.allocate(1024 * 50);
+                FileChannel tempChannel;
+                for (String s : tempFileList) {
+                    tempChannel = new FileInputStream(s).getChannel();
+                    while (tempChannel.read(buffer) > 0) {
+                        buffer.flip();
+                        downChannel.write(buffer);
+                        buffer.clear();
+                    }
+                    tempChannel.close();
+                }
+                System.out.println(fileName + " 下载完成。");
+            }catch (IOException e){
+                e.printStackTrace();
+            } finally {
+                try {
+                    if (downLock != null) {
+                        downLock.release();
+                    }
+                    if(downChannel != null){
+                        downChannel.close();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                //删除缓存文件夹
+                deleteFile(new File(tempFileList.get(0)).getParentFile());
+                //强制关闭虚拟机
+                System.exit(-1);
+            }
         }
     }
 
-    static class ListenDownloadLength {
-
-        long downloadLength = 0L;
-
-        public synchronized void add(long l){
-            downloadLength += l;
-        }
-
-        public long getDownloadLength() {
-            return downloadLength;
-        }
-    }
-
+    /**
+     * 下载任务消费者
+     */
     static class SliceTask implements Runnable {
 
         String fileUrl;
-        String downloadFilePath;
         String tempFilePath;
         long position;
         long count;
-        long size;
         ListenDownloadLength listenDownloadLength;
-        List<String> tempFileList;
 
         @Override
         public void run() {
             HttpURLConnection   con = null;
             FileOutputStream outputStream = null;
-            FileChannel downChannel = null;
-            FileChannel tempChannel = null;
-            FileLock downLock = null;
             try {
                 con = (HttpURLConnection)new URL(fileUrl).openConnection();
                 con.setRequestProperty("Connection", "Keep-Alive");  //保持一直连接
@@ -176,34 +264,14 @@ public class Download {
                 ReadableByteChannel read = Channels.newChannel(con.getInputStream());
                 outputStream = new FileOutputStream(tempFilePath);
                 FileChannel fileChannel = outputStream.getChannel();
-                FileLock lock = fileChannel.lock();
-                fileChannel.transferFrom(read,0,count);
-                lock.release();
-                listenDownloadLength.add(count);
-                if(listenDownloadLength.getDownloadLength() >= size){
-                    File downloadFile = new File(downloadFilePath);
-                    if(!downloadFile.exists()){
-                        downloadFile.createNewFile();
-                    }
-                    downChannel = new FileOutputStream(downloadFile).getChannel();
-                    downLock = downChannel.lock();
-                    File f = null;
-                    ByteBuffer buffer = ByteBuffer.allocate(1024*50);
-                    for(String s:tempFileList){
-                        f = new File(s);
-                        tempChannel = new FileInputStream(f).getChannel();
-                        while (tempChannel.read(buffer) > 0) {
-                            buffer.flip();
-                            downChannel.write(buffer);
-                            buffer.clear();
-                        }
-                        tempChannel.close();
-                    }
-                    if (f != null) {
-                        pool.execute(new DeleteFileTask(f.getParentFile()));
-                    }
-                    System.out.println(fileUrl + "下载完成。");
-                    System.exit(-1);
+                ByteBuffer buffer = ByteBuffer.allocate(1024*50);
+                int i;
+                while ((i = read.read(buffer)) > 0) {
+                    buffer.flip();
+                    fileChannel.write(buffer);
+                    //向监听器提交下载流量
+                    listenDownloadLength.add(i);
+                    buffer.clear();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -215,12 +283,6 @@ public class Download {
                     if (outputStream != null) {
                         outputStream.close();
                     }
-                    if(downLock != null){
-                        downLock.release();
-                    }
-                    if (downChannel != null){
-                        downChannel.close();
-                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -229,10 +291,6 @@ public class Download {
 
         public void setFileUrl(String fileUrl) {
             this.fileUrl = fileUrl;
-        }
-
-        public void setDownloadFilePath(String downloadFilePath) {
-            this.downloadFilePath = downloadFilePath;
         }
 
         public String getTempFilePath() {
@@ -251,16 +309,9 @@ public class Download {
             this.count = count;
         }
 
-        public void setSize(long size) {
-            this.size = size;
-        }
-
         public void setListenDownloadLength(ListenDownloadLength listenDownloadLength) {
             this.listenDownloadLength = listenDownloadLength;
         }
 
-        public void setTempFileList(List<String> tempFileList) {
-            this.tempFileList = tempFileList;
-        }
     }
 }
