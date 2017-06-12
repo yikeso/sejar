@@ -147,6 +147,7 @@ public class Download {
         long preSecondLength = 0L;
         List<String> tempFileList;
         Long downloadLength = 0L;
+        boolean failed = false;
 
         public void setSize(long size) {
             this.size = size;
@@ -170,10 +171,22 @@ public class Download {
             }
         }
 
+        public void setFailed(boolean failed) {
+            this.failed = failed;
+        }
+
+        public boolean isFailed() {
+            return failed;
+        }
+
         @Override
         public void run() {
             //每秒打印一次实时下载速度
             while (downloadLength < size){
+                if(failed){
+                    System.out.println(fileName + " 下载失败。");
+                    return;
+                }
                 double v;
                 synchronized (downloadLength) {
                     v = (downloadLength - preSecondLength) / 1024.0;
@@ -274,6 +287,9 @@ public class Download {
                 ByteBuffer buffer = ByteBuffer.allocate(1024*50);
                 int i;
                 while ((i = read.read(buffer)) > 0) {
+                    if (listenDownloadLength.isFailed()){
+                        return;
+                    }
                     buffer.flip();
                     fileChannel.write(buffer);
                     //向监听器提交下载流量
@@ -281,6 +297,7 @@ public class Download {
                     buffer.clear();
                 }
             } catch (IOException e) {
+                listenDownloadLength.setFailed(true);
                 e.printStackTrace();
             }finally {
                 if(con != null){
