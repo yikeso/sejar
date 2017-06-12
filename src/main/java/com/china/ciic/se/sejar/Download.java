@@ -230,6 +230,7 @@ public class Download {
                 }
                 System.out.println(fileName + " 下载完成。");
             }catch (IOException e){
+                System.out.println(fileName + " 下载失败。");
                 e.printStackTrace();
             } finally {
                 try {
