@@ -50,21 +50,36 @@ public class EncodeDate {
         } catch (ParseException e) {
             return null;
         }
-        //加密
-        byte[] b = new byte[3];
-        b[0] = Byte.parseByte(date.substring(6,8));
-        int m = 0;
-        m = m | Integer.parseInt(date.substring(4,6));
-        m = m << 4;
-        m = m | Integer.parseInt(date.substring(3,4));
-        b[1] = (byte) m;
-        m = Integer.parseInt(date.substring(0,3));
-        //日期超过2250年加密失败
-        if (m > 225){
-            return null;
+        //年
+        int e = Integer.parseInt(date.substring(0,4));
+        String b = Integer.toBinaryString(e);
+        String cArr = "0000000000000000000000000000000";
+        if (b.length() < 15){
+            b = cArr.substring(0,15-b.length()) + b;
         }
-        b[2] = (byte) m;
-        return b;
+        //月
+        e = Integer.parseInt(date.substring(4,6));
+        String s = Integer.toBinaryString(e);
+        if (s.length() < 4){
+            s = cArr.substring(0,4-s.length()) + s;
+        }
+        b += s;
+        //日
+        e = Integer.parseInt(date.substring(6));
+        s = Integer.toBinaryString(e);
+        if (s.length() < 5){
+            s = cArr.substring(0,5-s.length()) + s;
+        }
+        b += s;
+        System.out.println(b);
+        //加密
+        byte[] arr = new byte[3];
+        for(int i = 0;i < 3;i++){
+            s = b.substring(0,8);
+            arr[i] = (byte)(Integer.parseInt(s,2));
+            b = b.substring(8);
+        }
+        return arr;
     }
 
     /**
@@ -77,21 +92,45 @@ public class EncodeDate {
         if(data == null || data.length < 3){
             return null;
         }
-        String dd = "";
-        String s = dd + Byte.toUnsignedInt(data[2]);
-        String h = Integer.toHexString(data[1]).toLowerCase();
-        s += HEX.get(h.substring(1)).toString();
-        dd = dd + s;
-        s = HEX.get(h.substring(0,1)).toString();
-        if (s.length() < 2){
+        String h = "";
+        String cArr = "0000000000000000000000000000000";
+        String s;
+        for(int i = 0;i < 3;i++){
+            s =  Integer.toBinaryString(Byte.toUnsignedInt(data[i]));
+            if(s.length() < 8 ){
+                h += cArr.substring(0,8 - s.length()) + s;
+            }else if (s.length() > 8){
+                h += s.substring(s.length() - 8);
+            }else {
+                h += s;
+            }
+        }
+        System.out.println(h);
+        h = h.substring(h.indexOf('0'));
+        //日
+        s = h.substring(h.length()-5);
+        h = h.substring(0,h.length()-5);
+        int m = Integer.parseInt(s,2);
+        String dd = Integer.toString(m);
+        if (dd.length() < 2){
+            dd = "0" + dd;
+        }
+        //月
+        s = h.substring(h.length()-4);
+        h = h.substring(0,h.length()-4);
+        m = Integer.parseInt(s,2);
+        s = Integer.toString(m);
+        if(s.length() < 2){
             s = "0" + s;
         }
-        dd = dd + s;
-        s = Byte.toString(data[0]);
-        if (s.length() < 2){
+        dd = s + dd;
+        //年
+        m = Integer.parseInt(h,2);
+        s = Integer.toString(m);
+        if(s.length() < 2){
             s = "0" + s;
         }
-        dd = dd + s;
+        dd = s + dd;
         return dd;
     }
 
