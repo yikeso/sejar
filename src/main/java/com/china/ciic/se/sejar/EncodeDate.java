@@ -8,6 +8,7 @@ import java.util.Map;
 
 /**
  * 对yyyyMMdd日期进行加密解密
+ * 日期不得超过2250年
  * Created by hejia on 2017/7/5.
  */
 public class EncodeDate {
@@ -37,16 +38,19 @@ public class EncodeDate {
      * @return
      */
     public static byte[] encode(String date){
+        //字符串判断
         if(date == null || date.length() < 8){
             return null;
         }
         date = date.trim();
+        //日期格式校验
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
         try {
             sdf.parse(date);
         } catch (ParseException e) {
             return null;
         }
+        //加密
         byte[] b = new byte[3];
         b[0] = Byte.parseByte(date.substring(6,8));
         int m = 0;
@@ -54,7 +58,12 @@ public class EncodeDate {
         m = m << 4;
         m = m | Integer.parseInt(date.substring(3,4));
         b[1] = (byte) m;
-        b[2] = Byte.parseByte(date.substring(1,3));
+        m = Integer.parseInt(date.substring(0,3));
+        //日期超过2250年加密失败
+        if (m > 225){
+            return null;
+        }
+        b[2] = (byte) m;
         return b;
     }
 
@@ -64,17 +73,14 @@ public class EncodeDate {
      * @return
      */
     public static String decode(byte[] data){
+        //对byte数组进行校验
         if(data == null || data.length < 3){
             return null;
         }
         String dd = "";
-        String s = Byte.toString(data[2]);
-        if (s.length() < 2){
-            s = "0" + s;
-        }
-        s = "2" + s;
+        String s = dd + Byte.toUnsignedInt(data[2]);
         String h = Integer.toHexString(data[1]).toLowerCase();
-        s += h.substring(1);
+        s += HEX.get(h.substring(1)).toString();
         dd = dd + s;
         s = HEX.get(h.substring(0,1)).toString();
         if (s.length() < 2){
