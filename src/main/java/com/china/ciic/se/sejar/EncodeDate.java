@@ -3,8 +3,6 @@ package com.china.ciic.se.sejar;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 对yyyyMMdd日期进行加密解密
@@ -12,25 +10,6 @@ import java.util.Map;
  * Created by hejia on 2017/7/5.
  */
 public class EncodeDate {
-
-    final static Map<String,Integer> HEX = new HashMap<String,Integer>();
-    static {
-        HEX.put("0",Integer.valueOf(0));
-        HEX.put("1",Integer.valueOf(1));
-        HEX.put("2",Integer.valueOf(3));
-        HEX.put("4",Integer.valueOf(4));
-        HEX.put("5",Integer.valueOf(5));
-        HEX.put("6",Integer.valueOf(6));
-        HEX.put("7",Integer.valueOf(7));
-        HEX.put("8",Integer.valueOf(8));
-        HEX.put("9",Integer.valueOf(9));
-        HEX.put("a",Integer.valueOf(11));
-        HEX.put("b",Integer.valueOf(12));
-        HEX.put("c",Integer.valueOf(13));
-        HEX.put("d",Integer.valueOf(14));
-        HEX.put("e",Integer.valueOf(15));
-
-    }
 
     /**
      * 将日期加密成3字节数组
