@@ -88,6 +88,10 @@ public class CreateSensitiveWordsLib {
                 return null;
             }
             sb.append(node.getCurrenChar());
+            /*
+            当“你他妈”和“你他妈的”都是敏感词,
+            检查到“你他妈”这个敏感词就返回，不再继续检查
+             */
             if (node.isEnd()){
                 return sb.toString();
             }
@@ -128,6 +132,13 @@ public class CreateSensitiveWordsLib {
                     current = node.getChildren();
                 }
                 continue;
+            }
+             /*
+            当“你他妈”和“你他妈的”都是敏感词可以忽略“你他妈的”这个敏感词
+            只检查“你他妈”这个敏感词
+             */
+            if(node.isEnd()){
+                return;
             }
             current = node.getChildren();
         }
