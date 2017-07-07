@@ -1,12 +1,10 @@
 package com.china.ciic.se.sejar;
 
 import javax.annotation.PostConstruct;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
+ * 利用三叉树原理高效检查文中敏感词
  * Created by kakasun on 2017/7/4.
  */
 public class CreateSensitiveWordsLib {
@@ -33,6 +31,33 @@ public class CreateSensitiveWordsLib {
         synchronized (SensitiveWordsLib){
             SensitiveWordsLib = lib;
         }
+    }
+
+    /**
+     * 检查出文字中的所有敏感词
+     * @param text
+     * @return
+     */
+    public Set<String> checkOutAllSensitiveWord(String text,boolean isHtml){
+        Set<String> set = new TreeSet<String>();
+        if (text == null || text.length() == 0){
+            return set;
+        }
+        //过滤标签
+        if(isHtml){
+            text = text.replaceAll("</?[^<>]+>","");
+        }
+        //过滤换行符
+        text = text.replaceAll("[\r\n]+","");
+        int l = text.length();
+        String word;
+        for(int i = 0;i < l;i++){
+            word = checkOutSensitiveWord(i,text);
+            if(word != null){
+                set.add(word);
+            }
+        }
+        return set;
     }
 
     /**
@@ -168,12 +193,7 @@ public class CreateSensitiveWordsLib {
                 " 我他妈跟你接吻。 你他妈死活不肯。 你他妈无情无意。 我他妈决定放弃。 我他妈刚要跳楼。 你他妈才回过头。 " +
                 "你他妈回心转意。 我他妈刚好落地。 你他妈哭得像鬼 . 我他妈死的后悔 . 大海啊，他妈尽是水. 蜈蚣啊，他妈尽是腿 . " +
                 "辣椒啊，尽他妈辣嘴 . 有你们我他妈从不后悔.你个2b，你他妈真怂。你大爷的。我去你大爷的。";
-        String w;
-        for (int i = 0;i < testStr.length();i++){
-            w = lib.checkOutSensitiveWord(i,testStr);
-            if(w != null){
-                System.out.println(w);
-            }
-        }
+        Set<String> set = lib.checkOutAllSensitiveWord(testStr,false);
+        System.out.println(Arrays.toString(set.toArray()));
     }
 }
