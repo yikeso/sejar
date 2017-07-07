@@ -29,6 +29,7 @@ public class CreateSensitiveWordsLib {
             add(s,lib);
         }
         synchronized (SensitiveWordsLib){
+            SensitiveWordsLib.clear();
             SensitiveWordsLib = lib;
         }
     }
